@@ -1,0 +1,23 @@
+{
+  "window_days": 365,
+  "claim_count_medium": 3,
+  "claim_count_high": 6,
+  "annual_points_medium": 20,
+  "annual_points_high": 42,
+  "extreme_vehicle_count": 8,
+  "household_point_cap": 24,
+  "short_window_days": 7,
+  "short_window_count": 3,
+  "burst_hours": 48,
+  "burst_count": 3,
+  "late_claim_days": 30,
+  "face_mismatch_strong": 0.35,
+  "face_mismatch_partial": 0.55,
+  "new_account_days": 30,
+  "vehicle_claimers_medium": 3,
+  "vehicle_claimers_high": 5,
+  "decision_medium": 35,
+  "decision_high": 60,
+  "reject_min_substantive_categories": 2,
+  "require_human_confirmation": true
+}

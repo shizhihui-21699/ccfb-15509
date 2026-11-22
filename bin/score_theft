@@ -1,0 +1,96 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# 违章认领顶替扣分识别 —— 命令行入口。
+#
+# 用法:
+#   ruby bin/score_theft assess data/sample_claims.json
+#   ruby bin/score_theft assess data.json --json  > out.json
+#   ruby bin/score_theft assess data.json --policy policy.json
+#   ruby bin/score_theft profile data.json P1001
+#   ruby bin/score_theft validate data.json
+
+require_relative '../lib/score_theft'
+
+include ScoreTheft
+
+def usage!
+  warn <<~TEXT
+    用法:
+      ruby bin/score_theft assess <data.json> [--json] [--policy policy.json]
+      ruby bin/score_theft profile <data.json> <person_id>
+      ruby bin/score_theft validate <data.json>
+  TEXT
+  exit 64
+end
+
+command = ARGV.shift
+usage! if command.nil?
+
+flags = {}
+positional = []
+ARGV.each do |arg|
+  case arg
+  when '--json' then flags[:json] = true
+  when '--policy' then flags[:policy] = :pending
+  else
+    if flags[:policy] == :pending
+      flags[:policy] = arg
+    else
+      positional << arg
+    end
+  end
+end
+
+data_path = positional.shift
+usage! if data_path.nil?
+
+policy = flags[:policy].is_a?(String) ? Policy.from_file(flags[:policy]) : Policy.new
+dataset = Dataset.from_file(data_path)
+
+errors = dataset.validate!
+if command == 'validate'
+  if errors.empty?
+    puts '数据自检通过。'
+  else
+    warn "数据自检发现 #{errors.size} 处问题:"
+    errors.each { |e| warn "  - #{e}" }
+    exit 1
+  end
+  exit 0
+end
+
+unless errors.empty?
+  warn "警告:数据自检发现 #{errors.size} 处问题,结果可能不准确:"
+  errors.each { |e| warn "  - #{e}" }
+  warn ''
+end
+
+engine = Engine.new(dataset, policy: policy)
+
+case command
+when 'assess'
+  result = engine.run
+  if flags[:json]
+    puts JSON.pretty_generate(result)
+  else
+    puts Report.render(result)
+  end
+when 'profile'
+  person_id = positional.shift
+  usage! if person_id.nil?
+  profile = engine.analyzer.profile(person_id)
+  if profile.nil?
+    warn "未找到人员 #{person_id}"
+    exit 2
+  end
+  puts "人员 #{profile.person.name}(#{person_id})画像"
+  puts "  综合风险分:#{profile.total_score}"
+  puts "  分项:#{profile.category_scores}"
+  puts "  窗口内无关联认领:#{profile.unrelated_claims.size} 次 / " \
+       "#{profile.distinct_unrelated_vehicle_ids.size} 辆车"
+  profile.findings.each { |f| puts "  · [#{CATEGORY_LABELS.fetch(f.category)} +#{f.weight}] #{f.message}" }
+  profile.benign_notes.each { |n| puts "  ~ #{n}" }
+else
+  usage!
+end
